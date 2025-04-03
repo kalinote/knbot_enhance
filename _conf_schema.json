@@ -14,16 +14,10 @@
                 "type": "int",
                 "default": 350
             },
-            "style": {
-                "descriptin": "渲染样式",
-                "type": "string",
-                "options": ["不使用额外样式", "github-markdown.css"],
-                "default": "github-markdown.css"
-            },
             "width": {
                 "description": "宽度",
                 "type": "int",
-                "default": 800
+                "default": 1600
             }
         }
     }

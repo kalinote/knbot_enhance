@@ -1,7 +1,7 @@
 import hashlib
+import json
 import os
 
-import markdown
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, register
 from astrbot.core.config.astrbot_config import AstrBotConfig
@@ -9,7 +9,7 @@ from astrbot.core.log import LogManager
 from astrbot.core.message.components import ComponentType
 from astrbot.core.star import Star
 from playwright.async_api import async_playwright
-from jinja2 import Environment, BaseLoader
+from jinja2 import Template
 
 logger = LogManager.GetLogger(log_name="knbot_enhance")
 
@@ -20,39 +20,18 @@ class KNBotEnhance(Star):
         self.config = config
         logger.debug(f"当前配置项: {self.config}")
         
-        self.jinja_env = Environment(
-            loader=BaseLoader(),
-            variable_start_string='[[', 
-            variable_end_string=']]',
-            autoescape=False
-        )
-        
         # 载入markdown css样式
         self.markdown_css_content = ""
         self.markdown_html_template = ""
-        if self.config.get("markdown_image_generate").get("enable") and self.config.get("markdown_image_generate").get("style") and not self.config.get("markdown_image_generate").get("style") == "不使用额外样式":
-            # 构建资源路径
-            css_path = os.path.join(os.getcwd(), os.path.join("data", "plugins", "knbot_enhance", "resource"), self.config.get("markdown_image_generate").get("style"))
-                
-            # 检查文件是否存在
-            if not os.path.exists(css_path):
-                logger.error(f"样式文件不存在: {css_path}")
-            else:
-                try:
-                    with open(css_path, 'r', encoding='utf-8') as f:
-                        self.markdown_css_content = f.read()
-                    logger.debug(f"载入样式文件: {css_path}")
-                except Exception as e:
-                    logger.warning(f"读取样式文件失败: {e}")
-                    
+        if self.config.get("markdown_image_generate").get("enable"):
             html_path = os.path.join(os.getcwd(), os.path.join("data", "plugins", "knbot_enhance", "resource"), "markdown-template.html")
             if not os.path.exists(html_path):
                 logger.error(f"样式文件不存在: {html_path}")
             else:
                 try:
                     with open(html_path, 'r', encoding='utf-8') as f:
-                        self.markdown_html_template = self.jinja_env.from_string(f.read())
-                    logger.debug(f"载入样式文件: {html_path}")
+                        self.markdown_html_template = Template(f.read())
+                    logger.debug(f"载入模板文件: {html_path}")
                 except Exception as e:
                     logger.warning(f"读取样式文件失败: {e}; 相关功能已禁用")
                     self.config["markdown_image_generate"]["enable"] = False
@@ -63,91 +42,117 @@ class KNBotEnhance(Star):
         logger.debug("开始执行测试命令")
         
         # 测试 markdown 渲染
-        ret = await self.text_to_markdown_image("""
-# Markdown 渲染示例
-这是一个将 Markdown 渲染为图片的 **Python** 脚本。
-## 功能列表
-*   支持基本的 Markdown 语法
-*   可以应用 `CSS` 样式
-*   代码高亮（需要 `Pygments` 库，`markdown` 会自动使用）
+        ret = await self.text_to_markdown_image(r'''# Markdown 与 LaTeX 渲染综合测试
+
+这是一个用于测试 Markdown 和 LaTeX 公式渲染能力的示例文档。
+
+## 基本 Markdown 功能
+
+*   **加粗文本** 和 *斜体文本*
+*   `行内代码` 示例
+*   [一个链接到 KaTeX](https://katex.org/)
+*   无序列表项 1
+    *   嵌套项 A
+    *   嵌套项 B
+*   有序列表项 1
+    1.  嵌套项 C
+    2.  嵌套项 D
+
+> 这是一个块引用。
+> 它可以包含多行。
+
+代码块示例 (Python):
 ```python
-def greet(name):
-    print(f"Hello, {name}!")
-greet("World")
+import math
+
+def calculate_circle_area(radius):
+  """Calculates the area of a circle."""
+  if radius < 0:
+    raise ValueError("Radius cannot be negative")
+  return math.pi * radius**2
+
+# Example usage
+r = 5
+area = calculate_circle_area(r)
+print(f"The area of a circle with radius {r} is {area}")
 ```
-## 表格示例
-| Header 1 | Header 2 |
-|----------|----------|
-| Cell 1   | Cell 2   |
-| Cell 3   | Cell 4   |
-访问 [OpenAI](https://openai.com) 获取更多信息。
 
-# 数学公式渲染测试
+# 表格示例
 
-## 基础公式
-行内公式示例：$E=mc^2$ 是爱因斯坦质能方程
+| 列1 | 列2 | 列3 |
+| --- | --- | --- |
+| 行1 | 行1 | 行1 |
+| 行2 | 行2 | 行2 |
+| 行3 | 行3 | 行3 |
 
-块级公式示例：
+
+---
+
+## LaTeX 公式渲染测试
+
+### 行内公式 (Inline Formulas)
+
+爱因斯坦的质能方程是 $E=mc^2$。
+勾股定理可以表示为 $a^2 + b^2 = c^2$。
+欧拉公式是 $e^{i\pi} + 1 = 0$。
+一个简单的分数：$\frac{a}{b}$，以及更复杂的分数：$\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$。
+包含希腊字母：$\alpha, \beta, \gamma, \Delta, \Omega$。
+测试上下标：$X_{i}^{n+1}$ 和 $f(x) = x^2$。
+
+### 块级公式 (Block Formulas)
+
+高斯积分：
 $$
-\int_{-\infty}^\infty e^{-x^2} dx = \sqrt{\pi}
-$$
-
-## 复杂结构测试
-矩阵运算：
-$$
-\begin{bmatrix}
-1 & 2 \\
-3 & 4 
-\end{bmatrix}
-+
-\begin{bmatrix}
-5 & 6 \\
-7 & 8 
-\end{bmatrix}
-=
-\begin{bmatrix}
-6 & 8 \\
-10 & 12 
-\end{bmatrix}
+\int_{-\infty}^{\infty} e^{-ax^2} dx = \sqrt{\frac{\pi}{a}}
 $$
 
-多行公式对齐：
+麦克斯韦方程组中的一个（高斯定律）：
+$$
+\nabla \cdot \mathbf{E} = \frac{\rho}{\varepsilon_0}
+$$
+
+黎曼 Zeta 函数在 $s=2$ 处的值：
+$$
+\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}
+$$
+
+使用 `aligned` 环境对齐多行公式：
 $$
 \begin{aligned}
-f(x) &= \int_0^1 x^2 dx \\
-&= \left.\frac{1}{3}x^3\right|_0^1 \\
-&= \frac{1}{3}
+f(x) &= (x+1)^2 \\\\
+&= x^2 + 2x + 1 \\\\
+\int f(x) dx &= \int (x^2 + 2x + 1) dx \\\\
+&= \frac{1}{3}x^3 + x^2 + x + C
 \end{aligned}
 $$
 
-## 特殊符号测试
-求和与极限：
+矩阵表示：
 $$
-\sum_{n=1}^\infty \frac{1}{n^2} = \frac{\pi^2}{6}
-$$
-
-微分方程：
-$$
-\frac{\partial u}{\partial t} = \alpha \nabla^2 u
-$$
-
-## 混合排版测试
-文字与公式混排：当 $x > 0$ 时，函数 $f(x) = \frac{1}{\sqrt{2\pi\sigma^2}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}$ 表示正态分布的概率密度函数。
-
-多公式环境：
-$$
-\begin{cases}
-2x + 3y = 7 \\
-4x - y = 5 
-\end{cases}
-$$
-对应的解为：
-$$
-x = \frac{7 \cdot (-1) - 5 \cdot 3}{2 \cdot (-1) - 4 \cdot 3} = 2,\quad
-y = 3
+M = \begin{bmatrix}
+1 & 2 & 3 \\\\
+4 & 5 & 6 \\\\
+7 & 8 & 9
+\end{bmatrix}
+\quad
+\mathbf{v} = \begin{pmatrix} x \\\\ y \\\\ z \end{pmatrix}
 $$
 
-                                                """)
+极限表示：
+$$
+\lim_{x \to 0} \frac{\sin x}{x} = 1
+$$
+
+## 混合内容
+
+在段落中混合使用公式：函数 $g(x) = \sin(x^2)$ 的导数是 $g'(x) = \cos(x^2) \cdot 2x$。当 $x \to \infty$ 时，$\frac{1}{x} \to 0$。
+
+列表项也可以包含公式：
+1.  第一个关键点涉及 $\lambda$ 参数。
+2.  第二个关键点是关于积分 $\int_0^1 x^n dx = \frac{1}{n+1}$ (对于 $n \neq -1$)。
+
+---
+
+测试结束。''')
         logger.debug(f"text_to_markdown_image 返回值: {ret}")
         yield event.image_result(ret)
     
@@ -155,106 +160,11 @@ $$
     async def markdown_image_generate(self, event: AstrMessageEvent):
         result = event.get_result()
         chain = result.chain
-        # logger.debug(chain) # 打印消息链
-        
-        # logger.debug(self.config.get("markdown_image_generate").get("enable"))
         if self.config.get("markdown_image_generate").get("enable"):
             for i in chain:
-                # logger.debug(len(i.text))
-                # logger.debug(self.config.get("markdown_image_generate").get("trigger_count"))
                 # TODO 这里可以进一步优化，而不只是简单通过字数来判断
                 if i.type == ComponentType.Plain.value and len(i.text) > self.config.get("markdown_image_generate").get("trigger_count"):
                     i.text = "!!"
-                    
-        # logger.debug(chain) # 打印消息链
-
-    # async def text_to_markdown_image(self, text: str) -> str:
-    #     """
-    #     将 Markdown 文本转换为带有样式的图片。
-    #     """
-        
-    #     try:
-    #         image_config = self.config.get("markdown_image_generate", {})
-    #         width = image_config.get("width")
-    #         if not width:
-    #             raise ValueError("Configuration missing: 'markdown_image_generate.width' is required.")
-
-    #         html_body = markdown.markdown(
-    #             text,
-    #             extensions=['extra', 'codehilite', 'tables', 'fenced_code'],
-    #             extension_configs={
-    #                 'codehilite': {'css_class': 'highlight'} # 使用 highlight class 配合 CSS
-    #             }
-    #         )
-
-    #         full_html = f"""
-    #         <!DOCTYPE html>
-    #         <html>
-    #         <head>
-    #             <meta charset="UTF-8">
-    #             <style>
-    #                 body {{
-    #                     font-family: sans-serif;
-    #                     padding: 0;
-    #                     margin: 0;
-    #                     box-sizing: border-box;
-    #                     background-color: white;
-    #                 }}
-    #                 {self.markdown_css_content}
-    #                 body.markdown-body {{
-    #                     width: {width}px;
-    #                     box-sizing: border-box;
-    #                     margin: 0 auto;
-    #                     overflow: hidden;
-    #                 }}
-
-    #                 img {{
-    #                     max-width: 100%;
-    #                     height: auto;
-    #                 }}
-
-    #                 pre.highlight {{
-    #                     background-color: #f6f8fa;
-    #                     padding: 16px;
-    #                     overflow: auto;
-    #                     border-radius: 6px;
-    #                 }}
-    #                 code {{
-    #                     font-family: monospace;
-    #                 }}
-    #             </style>
-    #         </head>
-    #         <body class="markdown-body">
-    #             {html_body}
-    #         </body>
-    #         </html>
-    #         """
-
-    #         output_dir = os.path.join(os.getcwd(), "data", "temp", "knbot_enhance", "text_to_markdown_image")
-    #         if not os.path.exists(output_dir):
-    #             os.makedirs(output_dir)
-
-    #         file_name = f"{hashlib.md5(full_html.encode('utf-8')).hexdigest()}.png"
-    #         output_path = os.path.join(output_dir, file_name)
-
-    #         async with async_playwright() as p:
-    #             browser = await p.chromium.launch()
-    #             page = await browser.new_page()
-    #             try:
-    #                 await page.set_viewport_size({"width": width, "height": 800}) # Height is arbitrary here
-    #                 await page.set_content(full_html, wait_until='load')
-    #                 await page.screenshot(
-    #                     path=output_path,
-    #                     full_page=True,
-    #                     type='png'
-    #                 )
-    #             finally:
-    #                 await page.close()
-    #                 await browser.close()
-    #         return output_path
-    #     except Exception as e:
-    #         print(f"Error generating markdown image: {e}")
-    #         raise
 
     async def text_to_markdown_image(self, text: str) -> str:
         """
@@ -264,23 +174,16 @@ $$
             image_config = self.config.get("markdown_image_generate", {})
             width = image_config.get("width")
             if not width:
-                raise ValueError("Configuration missing: 'markdown_image_generate.width' is required.")
-
-            # 生成 HTML 内容
-            html_body = markdown.markdown(
-                text,
-                extensions=['extra', 'codehilite', 'tables', 'fenced_code'],
-                extension_configs={
-                    'codehilite': {'css_class': 'highlight'}
-                }
-            )
+                width = 800
 
             # 生成完整 HTML
+            json_encoded_text = json.dumps(text)
             full_html = self.markdown_html_template.render(
-                markdown_css=self.markdown_css_content,
-                content_width=width,
-                body_content=html_body
+                json_text="const markdownInput = " + json_encoded_text + ";",       # 传递markdown
             )
+
+            with open("test.html", "w", encoding="utf-8") as f:
+                f.write(full_html)
 
             # 文件保存路径
             output_dir = os.path.join(os.getcwd(), "data", "temp", "knbot_enhance", "text_to_markdown_image")
@@ -295,20 +198,13 @@ $$
                 try:
                     await page.set_viewport_size({"width": width, "height": 800})
                     await page.set_content(full_html, wait_until="networkidle")
-                    # 数学公式检测
-                    has_math = await page.evaluate("""() => {
-                        return document.body.textContent.includes('$$') || 
-                            document.body.textContent.includes('$');
-                    }""")
 
-                    if has_math:
-                        await page.wait_for_function("window.renderPromise", timeout=5000)
-
+                    # 截图
                     await page.screenshot(path=output_path, full_page=True, type="png")
                 finally:
                     await page.close()
                     await browser.close()
             return output_path
         except Exception as e:
-            print(f"Error generating markdown image: {e}")
+            logger.error(f"生成Markdown图片时出错: {e}")
             raise
