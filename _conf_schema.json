@@ -1,0 +1,30 @@
+{
+    "markdown_image_generate": {
+        "description": "长文本转Markdown图片",
+        "hint": "将过长的文本转换成Markdown格式的图片，防止输出过长影响阅读。",
+        "type": "object",
+        "items": {
+            "enable": {
+                "description": "启用",
+                "type": "bool",
+                "default": true
+            },
+            "trigger_count": {
+                "description": "转换触发字数",
+                "type": "int",
+                "default": 350
+            },
+            "style": {
+                "descriptin": "渲染样式",
+                "type": "string",
+                "options": ["不使用额外样式", "github-markdown.css"],
+                "default": "github-markdown.css"
+            },
+            "width": {
+                "description": "宽度",
+                "type": "int",
+                "default": 800
+            }
+        }
+    }
+}
