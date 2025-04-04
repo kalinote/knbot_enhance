@@ -6,7 +6,8 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, register
 from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.log import LogManager
-from astrbot.core.message.components import ComponentType, Image
+from astrbot.core.message.components import ComponentType
+import astrbot.api.message_components as Comp
 from astrbot.core.star import Star
 from playwright.async_api import async_playwright
 from jinja2 import Template
@@ -46,7 +47,8 @@ class KNBotEnhance(Star):
                 logger.debug(f"index: {index}, item: {item}")
                 # TODO 这里可以进一步优化，而不只是简单通过字数来判断
                 if item.type == ComponentType.Plain.value and len(item.text) > self.config.get("markdown_image_generate").get("trigger_count"):
-                    chain[index] = Image.fromFileSystem(await self.text_to_markdown_image(item.text))
+                    image_path = await self.text_to_markdown_image(item.text)
+                    chain[index] = Comp.Image.fromFileSystem(image_path)
 
     async def text_to_markdown_image(self, text: str) -> str:
         """
