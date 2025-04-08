@@ -2,19 +2,16 @@ import hashlib
 import json
 import os
 
-from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.star import Context, register
-from astrbot.core.config.astrbot_config import AstrBotConfig
-from astrbot.core.log import LogManager
-from astrbot.core.message.components import ComponentType
 import astrbot.api.message_components as Comp
-from astrbot.core.star import Star
+
+from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.star import Context, register, Star
+from astrbot.api import logger, AstrBotConfig
+from astrbot.api.message_components import ComponentType
 from playwright.async_api import async_playwright
 from jinja2 import Template
 
-logger = LogManager.GetLogger(log_name="knbot_enhance")
-
-@register("knbot_enhance", "Kalinote", "KNBot 功能增强插件", "v0.2dev")
+@register("knbot_enhance", "Kalinote", "KNBot 功能增强插件", "0.0.2")
 class KNBotEnhance(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -38,13 +35,12 @@ class KNBotEnhance(Star):
                     self.config["markdown_image_generate"]["enable"] = False
                     self.config.save()
     
-    @filter.on_decorating_result()
+    @filter.on_decorating_result(desc="将过长的文本内容转换为Markdown图片")
     async def markdown_image_generate(self, event: AstrMessageEvent):
         result = event.get_result()
         chain = result.chain
         if self.config.get("markdown_image_generate").get("enable"):
             for index, item in enumerate(chain):
-                logger.debug(f"index: {index}, item: {item}")
                 # TODO 这里可以进一步优化，而不只是简单通过字数来判断
                 if item.type == ComponentType.Plain.value and len(item.text) > self.config.get("markdown_image_generate").get("trigger_count"):
                     logger.info(f"将文本内容转换为Markdown图片: {item.text[:10]}...")
