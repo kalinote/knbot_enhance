@@ -45,6 +45,10 @@ class KNBotEnhance(Star):
                 if item.type == ComponentType.Plain.value and len(item.text) > self.config.get("markdown_image_generate").get("trigger_count"):
                     logger.info(f"将文本内容转换为Markdown图片: {item.text[:10]}...")
                     image_path = await self.text_to_markdown_image(item.text)
+                    if not image_path:
+                        continue
+                    
+                    logger.info(f"生成Markdown图片: {image_path}")
                     chain[index] = Comp.Image.fromFileSystem(image_path)
                     logger.info(chain)
 
@@ -89,4 +93,4 @@ class KNBotEnhance(Star):
             return output_path
         except Exception as e:
             logger.error(f"生成Markdown图片时出错: {e}")
-            raise
+            return None
