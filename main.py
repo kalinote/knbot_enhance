@@ -11,7 +11,7 @@ from astrbot.api.message_components import ComponentType
 from playwright.async_api import async_playwright
 from jinja2 import Template
 
-@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "0.0.3", "https://github.com/kalinote/knbot_enhance")
+@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "0.0.4", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
     """[自用]KNBot 功能增强插件
     """
@@ -53,7 +53,6 @@ class KNBotEnhance(Star):
                     
                     logger.info(f"生成Markdown图片: {image_path}")
                     chain[index] = Comp.Image.fromFileSystem(image_path)
-                    logger.info(chain)
 
     async def text_to_markdown_image(self, text: str) -> str:
         """
@@ -71,14 +70,14 @@ class KNBotEnhance(Star):
                 json_text="const markdownInput = " + json_encoded_text + ";",       # 传递markdown
             )
 
-            with open("test.html", "w", encoding="utf-8") as f:
-                f.write(full_html)
-
             # 文件保存路径
             output_dir = os.path.join(os.getcwd(), "data", "temp")
             os.makedirs(output_dir, exist_ok=True)
             file_name = f"{hashlib.md5(full_html.encode('utf-8')).hexdigest()}.png"
             output_path = os.path.join(output_dir, file_name)
+            
+            with open(f"{output_path}.html", "w", encoding="utf-8") as f:
+                f.write(full_html)
 
             # 使用 Playwright 截图
             async with async_playwright() as p:

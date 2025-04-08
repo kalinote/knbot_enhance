@@ -13,6 +13,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
         integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous"
         onload="renderMathInElement(document.getElementById('content'),{delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
 </head>
 
 <body>
@@ -49,6 +50,32 @@
                 });
                 // 或者如果上面不工作，用全局的 highlightAll
                 // hljs.highlightAll();
+            }
+
+            // 4. Mermaid 渲染
+            if (typeof mermaid === 'object') {
+                mermaid.initialize({
+                    startOnLoad: false, // 禁用自动渲染
+                    theme: 'forest',
+                    securityLevel: 'loose',
+                    fontFamily: '"Trebuchet MS", Verdana, Arial, sans-serif'
+                });
+                
+                // 手动渲染所有 mermaid 代码块
+                contentElement.querySelectorAll('pre code.language-mermaid').forEach((block) => {
+                    const container = document.createElement('div');
+                    container.className = 'mermaid';
+                    container.textContent = block.textContent;
+                    block.parentElement.replaceWith(container);
+                });
+                
+                try {
+                    mermaid.run({
+                        querySelector: '.mermaid',
+                    });
+                } catch (e) {
+                    console.error('Mermaid 渲染失败:', e);
+                }
             }
         });
     </script>
