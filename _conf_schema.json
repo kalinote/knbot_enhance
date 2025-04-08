@@ -1,7 +1,7 @@
 {
     "markdown_image_generate": {
-        "description": "长文本转Markdown图片",
-        "hint": "将过长的文本转换成Markdown格式的图片，防止输出过长影响阅读。",
+        "description": "回复长文本转Markdown图片",
+        "hint": "将过长的回复文本转换成Markdown格式的图片，防止输出过长影响阅读。",
         "type": "object",
         "items": {
             "enable": {
@@ -18,6 +18,11 @@
                 "description": "宽度",
                 "type": "int",
                 "default": 1600
+            },
+            "generate_topic_summary": {
+                "description": "生成回复总结",
+                "type": "bool",
+                "default": true
             }
         }
     }
