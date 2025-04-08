@@ -11,7 +11,7 @@ from astrbot.api.message_components import ComponentType
 from playwright.async_api import async_playwright
 from jinja2 import Template
 
-@register("knbot_enhance", "Kalinote", "KNBot 功能增强插件", "0.0.2")
+@register("knbot_enhance", "Kalinote", "KNBot 功能增强插件", "0.0.2", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
