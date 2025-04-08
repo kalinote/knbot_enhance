@@ -14,7 +14,7 @@ from jinja2 import Template
 
 logger = LogManager.GetLogger(log_name="knbot_enhance")
 
-@register("knbot_enhance", "Kalinote", "KNBot 功能增强插件", "v0.1dev")
+@register("knbot_enhance", "Kalinote", "KNBot 功能增强插件", "v0.2dev")
 class KNBotEnhance(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -47,8 +47,10 @@ class KNBotEnhance(Star):
                 logger.debug(f"index: {index}, item: {item}")
                 # TODO 这里可以进一步优化，而不只是简单通过字数来判断
                 if item.type == ComponentType.Plain.value and len(item.text) > self.config.get("markdown_image_generate").get("trigger_count"):
+                    logger.info(f"将文本内容转换为Markdown图片: {item.text[:10]}...")
                     image_path = await self.text_to_markdown_image(item.text)
                     chain[index] = Comp.Image.fromFileSystem(image_path)
+                    logger.info(chain)
 
     async def text_to_markdown_image(self, text: str) -> str:
         """
