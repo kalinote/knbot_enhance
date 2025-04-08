@@ -1,3 +1,3 @@
 # KNBot Enhance
 
-KNBot 功能增强插件
+[自用]KNBot 功能增强插件

@@ -11,8 +11,11 @@ from astrbot.api.message_components import ComponentType
 from playwright.async_api import async_playwright
 from jinja2 import Template
 
-@register("knbot_enhance", "Kalinote", "KNBot 功能增强插件", "0.0.3", "https://github.com/kalinote/knbot_enhance")
+@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "0.0.3", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
+    """[自用]KNBot 功能增强插件
+    """
+    
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
@@ -72,7 +75,7 @@ class KNBotEnhance(Star):
                 f.write(full_html)
 
             # 文件保存路径
-            output_dir = os.path.join(os.getcwd(), "data", "temp", "knbot_enhance", "text_to_markdown_image")
+            output_dir = os.path.join(os.getcwd(), "data", "temp")
             os.makedirs(output_dir, exist_ok=True)
             file_name = f"{hashlib.md5(full_html.encode('utf-8')).hexdigest()}.png"
             output_path = os.path.join(output_dir, file_name)
