@@ -36,7 +36,7 @@ SUMMARY_PROMPT = """
 你是一名擅长内容总结的助理，你需要将用户的内容总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号。直接返回总结内容，不要有其他内容。
 """
 
-@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "v0.0.8", "https://github.com/kalinote/knbot_enhance")
+@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "0.0.8", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
     """[自用]KNBot 功能增强插件
     """
