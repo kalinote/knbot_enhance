@@ -5,7 +5,7 @@ from typing import List
 
 import astrbot.api.message_components as Comp
 
-from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api.star import Context, register, Star
 from astrbot.api import logger, AstrBotConfig, llm_tool
 from astrbot.api.message_components import ComponentType
@@ -35,7 +35,7 @@ SUMMARY_PROMPT = """
 你是一名擅长内容总结的助理，你需要将用户的内容总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号。直接返回总结内容，不要有其他内容。
 """
 
-@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "1.0.2", "https://github.com/kalinote/knbot_enhance")
+@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "v1.0.2", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
     """[自用]KNBot 功能增强插件
     """
@@ -102,7 +102,7 @@ class KNBotEnhance(Star):
                 # TODO 这里可以进一步优化，而不只是简单通过字数来判断
                 if item.type == ComponentType.Plain.value and len(item.text) > self.config.get("markdown_image_generate").get("trigger_count"):
                     logger.info(f"将文本内容转换为Markdown图片: {item.text[:10]}...")
-                    await event.send(Comp.Plain(f"[系统] 正在渲染Markdown，请稍候..."))
+                    await event.send(MessageChain().message(f"[系统] 正在渲染Markdown，请稍候..."))
                     image_path = await self.text_to_markdown_image(item.text, self.config.get("markdown_image_generate").get("generate_topic_summary"))
                     if not image_path:
                         continue
@@ -111,17 +111,19 @@ class KNBotEnhance(Star):
 
     @llm_tool(name="tell_user")
     async def tell_user(self, event: AstrMessageEvent, message: str):
-        """给用户发送一条**简短的、没有格式**的文本内容，你可以使用这个工具告诉用户你得出最终结论前的**简短的**想法或思考、处理问题的过程或者其他你想告诉用户的消息等。
+        """你可以使用这个工具告诉用户你的**简短的**想法或思考、处理问题的过程或者其他你需要告诉用户的消息等。
+        你应该尽可能经常地使用该工具，让用户及时知道你的想法和处理过程。
 
         Args:
             message (string): 消息内容
         """
         yield event.plain_result(f"[想法] {message}")
-        yield "已将该消息告知用户"
+        yield "已将该消息告知用户，继续你的思考"
         
     @llm_tool(name="tell_user_markdown")
     async def tell_user_markdown(self, event: AstrMessageEvent, message: str, title: str = ""):
-        """给用户发送一条**带有Markdown格式的或篇幅较长**的文本内容，你可以使用这个工具告诉用户你得出最终结论前的**较长的或包含Markdown格式、Mermaid图表或latex公式等的**想法或思考、处理问题的过程或者其他你想告诉用户的消息等。
+        """你可以使用这个工具告诉用户你的**较长的或包含Markdown格式、Mermaid图表或latex公式等的**想法或思考、处理问题的过程或者其他你想告诉用户的消息等。
+        你应该尽可能经常地使用该工具，让用户及时知道你的想法和处理过程。
 
         Args:
             message (string): 消息内容
@@ -133,7 +135,7 @@ class KNBotEnhance(Star):
         else:
             logger.warning(f"AI试图向用户发送一条Markdown消息，但生成Markdown图片失败，消息原文为: \n{message}")
             yield "处理Markdown格式失败，你可以尝试简化成不带格式的文本消息并使用tell_user工具告知用户"
-        yield "已将该消息告知用户"
+        yield "已将该消息告知用户，继续你的思考"
             
     async def generate_topic_summary(self, text: str) -> str:
         """
