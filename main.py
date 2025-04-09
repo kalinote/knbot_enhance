@@ -1,17 +1,41 @@
 import hashlib
 import json
 import os
+from typing import List
 
 import astrbot.api.message_components as Comp
 
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, register, Star
-from astrbot.api import logger, AstrBotConfig
+from astrbot.api import logger, AstrBotConfig, llm_tool
 from astrbot.api.message_components import ComponentType
+from astrbot.api.provider import Personality
 from playwright.async_api import async_playwright
 from jinja2 import Template
 
-@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "0.0.5", "https://github.com/kalinote/knbot_enhance")
+KNBOT_PROMPT = """
+你是一个语言模型助手，你需要尽可能地回答或解决用户的问题。
+
+# 回答要求
+- 如果涉及到计算、推理或比较复杂的内容的回答，需要通过工具告诉用户你的想法和计算过程
+- 想法和过程需要尽可能详细到每一个步骤，并且将每一个步骤都通过工具告知用户
+- 在说明所有想法和过程以后再给用户提供最终结果
+- 除特殊要求或必要情况外，较短内容或简洁内容的回答不要Markdown格式
+- 除特殊要求或必要情况外，较长的内容或复杂内容、需要排版的内容等使用Markdown格式
+- 在任何涉及到流程的地方使用Mermaid图表
+- 在任何涉及到数学公式的地方使用latex公式
+
+# 格式要求
+- Mermaid图表语法应该包含在Markdown的Mermaid代码块中，防止渲染失败
+- 编写latex公式需要使用latex语法(内联公式使用$...$，块级公式使用$$...$$)，除特殊情况外(需要展示公式原文)不能写在Markdown代码块中，防止渲染失败
+- 如果回答无需使用公式，则不要乱用公式
+"""
+
+SUMMARY_PROMPT = """
+你是一名擅长内容总结的助理，你需要将用户的内容总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号。直接返回总结内容，不要有其他内容。
+"""
+
+@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "0.0.6", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
     """[自用]KNBot 功能增强插件
     """
@@ -38,10 +62,39 @@ class KNBotEnhance(Star):
                     self.config["markdown_image_generate"]["enable"] = False
                     self.config.save()
                     
-        self.topic_summary_prompt = "你是一名擅长内容总结的助理，你需要将用户的内容总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号。直接返回总结内容，不要有其他内容。"
+        # 设置KNBot人格，这一段似乎有点问题，需要进一步确认
+        # if self.config.get("knbot_prompt"):
+        #     personas = self.context.provider_manager.personas
+        #     knbot_persona = None
+        #     for persona in personas:
+        #         if hasattr(persona, "name"):
+        #             if persona.name == "KNBot":
+        #                 knbot_persona = persona
+        #                 break
+        #         elif isinstance(persona, dict):
+        #             if persona.get("name") == "KNBot":
+        #                 knbot_persona = persona
+        #                 break
+        #         else:
+        #             logger.warning(f"KNBot人格配置格式错误: {persona}; 相关功能已禁用")
+        #             self.config["knbot_prompt"]["enable"] = False
+        #             self.config.save()
+        #             break
+        #     if not knbot_persona:
+        #         knbot_persona = Personality(
+        #             name="KNBot",
+        #             prompt=KNBOT_PROMPT,
+        #             begin_dialogs=[],
+        #             mood_imitation_dialogs=[]
+        #         )
+        #         personas.append(knbot_persona)
+
+        #     # 设置默认人格为KNBot人格
+        #     self.context.provider_manager.selected_default_persona = knbot_persona
+
     
     @filter.on_decorating_result(desc="将过长的文本内容转换为Markdown图片")
-    async def markdown_image_generate(self, event: AstrMessageEvent):
+    async def long_message_handler(self, event: AstrMessageEvent):
         result = event.get_result()
         chain = result.chain
         if self.config.get("markdown_image_generate").get("enable"):
@@ -53,20 +106,47 @@ class KNBotEnhance(Star):
                     if not image_path:
                         continue
                     
-                    logger.info(f"生成Markdown图片: {image_path}")
                     chain[index] = Comp.Image.fromFileSystem(image_path)
 
+    @llm_tool(name="tell_user")
+    async def tell_user(self, event: AstrMessageEvent, message: str):
+        """给用户发送一条**简短的、没有格式**的文本内容，如果你需要给用户发送简短的文本内容，请使用这个工具。
+        你可以使用这个工具告诉用户你得出最终结论前的想法或思考、处理问题的过程或者其他你想告诉用户的消息等。
+
+        Args:
+            message (string): 消息内容
+        """
+        yield event.plain_result(f"[想法] {message}")
+        yield "已将该消息告知用户"
+        
+    @llm_tool(name="tell_user_markdown")
+    async def tell_user_markdown(self, event: AstrMessageEvent, message: str, title: str = ""):
+        """给用户发送一条**带有Markdown格式的或篇幅较长**的文本内容，如果你需要给用户发送带有Markdown格式的文本内容，请使用这个工具。
+        你可以使用这个工具告诉用户你得出最终结论前的想法或思考、处理问题的过程或者其他你想告诉用户的消息等。
+
+        Args:
+            message (string): 消息内容
+            title (string): 消息的标题，可选参数，如果留空则使用系统默认的标题配置
+        """
+        image_path = await self.text_to_markdown_image(message, self.config.get("markdown_image_generate").get("generate_topic_summary"), f"[想法] {title}")
+        if image_path:
+            yield event.image_result(image_path)
+        else:
+            logger.warning(f"AI试图向用户发送一条Markdown消息，但生成Markdown图片失败，消息原文为: \n{message}")
+            yield "处理Markdown格式失败，你可以尝试简化成不带格式的文本消息并使用tell_user工具告知用户"
+        yield "已将该消息告知用户"
+            
     async def generate_topic_summary(self, text: str) -> str:
         """
         生成会话总结
         """
         response = await self.context.get_using_provider().text_chat(
             prompt=text,
-            system_prompt=self.topic_summary_prompt,
+            system_prompt=SUMMARY_PROMPT,
         )
         return response.completion_text
 
-    async def text_to_markdown_image(self, text: str, generate_topic_summary: bool = False) -> str:
+    async def text_to_markdown_image(self, text: str, generate_topic_summary: bool = False, title: str = "KNBot Enhance") -> str:
         """
         将 Markdown 文本转换为带有样式的图片（使用模板文件）
         """
@@ -80,7 +160,7 @@ class KNBotEnhance(Star):
             json_encoded_text = json.dumps(text)
             full_html = self.markdown_html_template.render(
                 json_text="const markdownInput = " + json_encoded_text + ";",
-                topic_summary= await self.generate_topic_summary(text) if generate_topic_summary else "KNBot Enhance",
+                topic_summary= await self.generate_topic_summary(text) if generate_topic_summary else title,
             )
 
             # 文件保存路径

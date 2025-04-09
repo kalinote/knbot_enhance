@@ -25,5 +25,11 @@
                 "default": true
             }
         }
+    },
+    "knbot_prompt": {
+        "description": "使用KNBot专用提示词",
+        "hint": "部分插件功能可能需要特定提示词才能正常使用，启用此选项会在插件启动时覆盖默认人格提示词设置",
+        "type": "bool",
+        "default": true
     }
 }
