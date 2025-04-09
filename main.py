@@ -20,6 +20,7 @@ KNBOT_PROMPT = """
 - 如果涉及到计算、推理或比较复杂的内容的回答，需要先逐步进行思考，并通过工具告诉用户你的想法或思考过程
 - 想法和过程需要尽可能详细到每一个步骤，并且将每一个步骤都通过工具告知用户，不要尝试一步到位
 - 在完成所有想法和过程以后再给用户提供最终结果
+- 在输出最终结果时，无需使用发送消息的工具，直接输出即可
 - 除特殊要求或必要情况外，较短内容或简洁内容的回答不要Markdown格式
 - 除特殊要求或必要情况外，较长的内容或复杂内容、需要排版的内容等使用Markdown格式
 - 在任何涉及到流程的地方使用Mermaid图表
@@ -35,7 +36,7 @@ SUMMARY_PROMPT = """
 你是一名擅长内容总结的助理，你需要将用户的内容总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号。直接返回总结内容，不要有其他内容。
 """
 
-@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "v0.0.7", "https://github.com/kalinote/knbot_enhance")
+@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "v0.0.8", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
     """[自用]KNBot 功能增强插件
     """
@@ -110,8 +111,7 @@ class KNBotEnhance(Star):
 
     @llm_tool(name="tell_user")
     async def tell_user(self, event: AstrMessageEvent, message: str):
-        """给用户发送一条**简短的、没有格式**的文本内容，如果你需要给用户发送简短的文本内容，请使用这个工具。
-        你可以使用这个工具告诉用户你得出最终结论前的想法或思考、处理问题的过程或者其他你想告诉用户的消息等。
+        """给用户发送一条**简短的、没有格式**的文本内容，你可以使用这个工具告诉用户你得出最终结论前的**简短的**想法或思考、处理问题的过程或者其他你想告诉用户的消息等。
 
         Args:
             message (string): 消息内容
@@ -121,8 +121,7 @@ class KNBotEnhance(Star):
         
     @llm_tool(name="tell_user_markdown")
     async def tell_user_markdown(self, event: AstrMessageEvent, message: str, title: str = ""):
-        """给用户发送一条**带有Markdown格式的或篇幅较长**的文本内容，如果你需要给用户发送带有Markdown格式的文本内容，请使用这个工具。
-        你可以使用这个工具告诉用户你得出最终结论前的想法或思考、处理问题的过程或者其他你想告诉用户的消息等。
+        """给用户发送一条**带有Markdown格式的或篇幅较长**的文本内容，你可以使用这个工具告诉用户你得出最终结论前的**较长的或包含Markdown格式、Mermaid图表或latex公式等的**想法或思考、处理问题的过程或者其他你想告诉用户的消息等。
 
         Args:
             message (string): 消息内容
