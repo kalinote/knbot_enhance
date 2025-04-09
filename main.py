@@ -36,7 +36,7 @@ SUMMARY_PROMPT = """
 你是一名擅长内容总结的助理，你需要将用户的内容总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号。直接返回总结内容，不要有其他内容。
 """
 
-@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "0.0.9", "https://github.com/kalinote/knbot_enhance")
+@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "1.0.1", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
     """[自用]KNBot 功能增强插件
     """
@@ -103,7 +103,7 @@ class KNBotEnhance(Star):
                 # TODO 这里可以进一步优化，而不只是简单通过字数来判断
                 if item.type == ComponentType.Plain.value and len(item.text) > self.config.get("markdown_image_generate").get("trigger_count"):
                     logger.info(f"将文本内容转换为Markdown图片: {item.text[:10]}...")
-                    event.send(Comp.Plain.fromText(f"[系统] 正在渲染Markdown，请稍候..."))
+                    event.send(Comp.Plain(f"[系统] 正在渲染Markdown，请稍候..."))
                     image_path = await self.text_to_markdown_image(item.text, self.config.get("markdown_image_generate").get("generate_topic_summary"))
                     if not image_path:
                         continue
