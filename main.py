@@ -17,10 +17,9 @@ KNBOT_PROMPT = """
 你是一个语言模型助手，你需要尽可能地回答或解决用户的问题。
 
 # 回答要求
-- 如果涉及到计算、推理或比较复杂的内容的回答，需要先逐步进行思考，并通过工具告诉用户你的想法或思考过程
-- 想法和过程需要尽可能详细到每一个步骤，并且将每一个步骤都通过工具告知用户，不要尝试一步到位
+- 如果涉及到计算、推理或比较复杂的内容的回答，需要先进行**逐步思考**，并通过工具告诉用户你的想法或思考过程
+- 想法和过程需要尽可能详细到**每一个步骤**，并且将每一个思考过程都通过工具**发送给用户**，不要尝试一步到位直接得到结果
 - 在完成所有想法和过程以后再给用户提供最终结果
-- 在输出最终结果时，无需使用发送消息的工具，直接输出即可
 - 除特殊要求或必要情况外，较短内容或简洁内容的回答不要Markdown格式
 - 除特殊要求或必要情况外，较长的内容或复杂内容、需要排版的内容等使用Markdown格式
 - 在任何涉及到流程的地方使用Mermaid图表
@@ -36,7 +35,7 @@ SUMMARY_PROMPT = """
 你是一名擅长内容总结的助理，你需要将用户的内容总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号。直接返回总结内容，不要有其他内容。
 """
 
-@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "1.0.1", "https://github.com/kalinote/knbot_enhance")
+@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "1.0.2", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
     """[自用]KNBot 功能增强插件
     """
@@ -103,7 +102,7 @@ class KNBotEnhance(Star):
                 # TODO 这里可以进一步优化，而不只是简单通过字数来判断
                 if item.type == ComponentType.Plain.value and len(item.text) > self.config.get("markdown_image_generate").get("trigger_count"):
                     logger.info(f"将文本内容转换为Markdown图片: {item.text[:10]}...")
-                    event.send(Comp.Plain(f"[系统] 正在渲染Markdown，请稍候..."))
+                    await event.send(Comp.Plain(f"[系统] 正在渲染Markdown，请稍候..."))
                     image_path = await self.text_to_markdown_image(item.text, self.config.get("markdown_image_generate").get("generate_topic_summary"))
                     if not image_path:
                         continue
