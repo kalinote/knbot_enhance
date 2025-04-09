@@ -112,7 +112,7 @@ class KNBotEnhance(Star):
     @llm_tool(name="tell_user")
     async def tell_user(self, event: AstrMessageEvent, message: str):
         """你可以使用这个工具告诉用户你的**简短的**想法或思考、处理问题的过程或者其他你需要告诉用户的消息等。
-        你应该尽可能经常地使用该工具，让用户及时知道你的想法和处理过程。
+        你应该尽可能地在推理或解决问题的每一步使用该工具，让用户及时知道你的想法和处理过程。
 
         Args:
             message (string): 消息内容
@@ -123,7 +123,7 @@ class KNBotEnhance(Star):
     @llm_tool(name="tell_user_markdown")
     async def tell_user_markdown(self, event: AstrMessageEvent, message: str, title: str = ""):
         """你可以使用这个工具告诉用户你的**较长的或包含Markdown格式、Mermaid图表或latex公式等的**想法或思考、处理问题的过程或者其他你想告诉用户的消息等。
-        你应该尽可能经常地使用该工具，让用户及时知道你的想法和处理过程。
+        你应该尽可能地在推理或解决问题的每一步使用该工具，让用户及时知道你的想法和处理过程。
 
         Args:
             message (string): 消息内容
