@@ -35,6 +35,7 @@ KNBOT_PROMPT = """
 - 数学公式使用LaTeX格式: 内联公式用$...$，块级公式用$$...$$
 - 表格、代码块、列表等需符合标准Markdown语法
 - 不要在不必要的情况下使用复杂格式，保持简洁明了
+- 注意工具的正确调用方法，不要在回答中进行工具调用
 """
 
 SUMMARY_PROMPT = """
@@ -175,7 +176,7 @@ class KNBotEnhance(Star):
         )
         return response.completion_text
 
-    async def text_to_markdown_image(self, text: str, generate_topic_summary: bool = False, title: str = "KNBot Enhance") -> str:
+    async def text_to_markdown_image(self, text: str, generate_topic_summary: bool = False, title: str = None) -> str:
         """
         将 Markdown 文本转换为带有样式的图片（使用模板文件）
         """
@@ -189,7 +190,7 @@ class KNBotEnhance(Star):
             json_encoded_text = json.dumps(text)
             full_html = self.markdown_html_template.render(
                 json_text="const markdownInput = " + json_encoded_text + ";",
-                topic_summary= await self.generate_topic_summary(text) if generate_topic_summary else title,
+                topic_summary= title if title else await self.generate_topic_summary(text) if generate_topic_summary else "KNBot Enhance"
             )
 
             # 文件保存路径
