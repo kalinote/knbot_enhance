@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import datetime
 from typing import List
 
 import astrbot.api.message_components as Comp
@@ -13,26 +14,7 @@ from astrbot.api.provider import Personality
 from playwright.async_api import async_playwright
 from jinja2 import Template
 
-KNBOT_PROMPT = """
-你是一个思考透明的语言模型助手，你需要展示详细的思考过程并最终解决用户的问题。
-
-# 思考与回答方式
-- 你必须始终展示完整的思考过程，不可以跳过中间步骤直接给出结论
-- 对于任何需要分析、计算或推理的问题，应当将思考过程分解为多个清晰的步骤
-- 每完成一个思考步骤，立即使用工具向用户展示
-- 仅在完成所有思考步骤后，才提供最终的完整答案或结论
-- 仅在展示思考步骤时使用工具，如果需要与用户进行互动，则直接进行对话或提问，不要使用工具
-
-# 格式规范
-- Mermaid图表必须包含在```mermaid代码块中
-- 数学公式使用LaTeX格式: 内联公式用$...$，块级公式用$$...$$
-- 表格、代码块、列表等需符合标准Markdown语法
-- 不要在不必要的情况下使用复杂格式，保持简洁明了
-"""
-
-SUMMARY_PROMPT = """
-你是一名擅长内容总结的助理，你需要将用户的内容总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号。直接返回总结内容，不要有其他内容。
-"""
+from .prompt import *
 
 @register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "v1.0.3", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
@@ -159,6 +141,20 @@ class KNBotEnhance(Star):
             logger.warning(f"AI试图向用户发送一条Markdown消息，但生成Markdown图片失败，消息原文为: \n{message}")
             yield "处理Markdown格式失败，请简化内容并使用tell_user工具重试"
         yield "已向用户展示格式化内容，请继续下一步思考"
+            
+    @filter.command("deepresearch")
+    async def deepresearch(self, event: AstrMessageEvent, research_topic: str):
+        """
+        进行深度研究
+        """
+        func_tools_mgr = self.context.get_llm_tool_manager()
+        tools = func_tools_mgr.get_func_desc_openai_style()
+        
+        system_prompt = ""
+        system_prompt += Template(DEEPRESEARCH_PROMPT).render(current_datetime=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        system_prompt += Template(DEEPRESEARCH_TOOLS).render(tools="\n".join([json.dumps(tool.get("function"), ensure_ascii=False, indent=4) for tool in tools]))
+        system_prompt += Template(DEEPRESEARCH_ACTIONS).render(actions="")
+        yield event.plain_result(system_prompt)
             
     async def generate_topic_summary(self, text: str) -> str:
         """
