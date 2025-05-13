@@ -2,21 +2,27 @@ import hashlib
 import json
 import os
 import datetime
+import uuid
 from typing import List
 
 import astrbot.api.message_components as Comp
-
 from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api.star import Context, register, Star
 from astrbot.api import logger, AstrBotConfig, llm_tool
 from astrbot.api.message_components import ComponentType
-from astrbot.api.provider import Personality
 from playwright.async_api import async_playwright
 from jinja2 import Template
+from astrbot.core.utils.session_waiter import (
+    session_waiter,
+    SessionController,
+)
+
+from data.plugins.knbot_enhance.enums import DeepResearchWorkStage
 
 from .prompt import *
+from .context import DeepResearchContext
 
-@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "v1.0.3", "https://github.com/kalinote/knbot_enhance")
+@register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "1.0.4", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
     """[自用]KNBot 功能增强插件
     """
@@ -43,36 +49,10 @@ class KNBotEnhance(Star):
                     self.config["markdown_image_generate"]["enable"] = False
                     self.config.save()
                     
-        # 设置KNBot人格，这一段似乎有点问题，需要进一步确认
-        # if self.config.get("knbot_prompt"):
-        #     personas = self.context.provider_manager.personas
-        #     knbot_persona = None
-        #     for persona in personas:
-        #         if hasattr(persona, "name"):
-        #             if persona.name == "KNBot":
-        #                 knbot_persona = persona
-        #                 break
-        #         elif isinstance(persona, dict):
-        #             if persona.get("name") == "KNBot":
-        #                 knbot_persona = persona
-        #                 break
-        #         else:
-        #             logger.warning(f"KNBot人格配置格式错误: {persona}; 相关功能已禁用")
-        #             self.config["knbot_prompt"]["enable"] = False
-        #             self.config.save()
-        #             break
-        #     if not knbot_persona:
-        #         knbot_persona = Personality(
-        #             name="KNBot",
-        #             prompt=KNBOT_PROMPT,
-        #             begin_dialogs=[],
-        #             mood_imitation_dialogs=[]
-        #         )
-        #         personas.append(knbot_persona)
-
-        #     # 设置默认人格为KNBot人格
-        #     self.context.provider_manager.selected_default_persona = knbot_persona
-
+        self.datas = {
+            "deepresearch": {}
+        }
+        
     
     @filter.on_decorating_result(desc="将过长的文本内容转换为Markdown图片")
     async def long_message_handler(self, event: AstrMessageEvent):
@@ -84,7 +64,7 @@ class KNBotEnhance(Star):
                 if item.type == ComponentType.Plain.value and len(item.text) > self.config.get("markdown_image_generate").get("trigger_count"):
                     logger.info(f"将文本内容转换为Markdown图片: {item.text[:10]}...")
                     await event.send(MessageChain().message(f"[系统] 正在渲染Markdown，请稍候..."))
-                    image_path = await self.text_to_markdown_image(item.text, self.config.get("markdown_image_generate").get("generate_topic_summary"))
+                    image_path = await self._text_to_markdown_image(item.text, self.config.get("markdown_image_generate").get("generate_topic_summary"))
                     if not image_path:
                         continue
                     
@@ -134,7 +114,7 @@ class KNBotEnhance(Star):
             message (string): 包含格式化内容的思考步骤或结论(Markdown格式)
             title (string): 可选的标题，简短描述这部分内容的主题（如"问题分析"、"计算过程"等）
         """
-        image_path = await self.text_to_markdown_image(message, self.config.get("markdown_image_generate").get("generate_topic_summary"), f"[想法] {title}")
+        image_path = await self._text_to_markdown_image(message, self.config.get("markdown_image_generate").get("generate_topic_summary"), f"[想法] {title}")
         if image_path:
             yield event.image_result(image_path)
         else:
@@ -146,7 +126,7 @@ class KNBotEnhance(Star):
     async def deepresearch(self, event: AstrMessageEvent, research_topic: str):
         """
         进行深度研究
-        """
+        """        
         func_tools_mgr = self.context.get_llm_tool_manager()
         tools = func_tools_mgr.get_func_desc_openai_style()
         
@@ -154,9 +134,51 @@ class KNBotEnhance(Star):
         system_prompt += Template(DEEPRESEARCH_PROMPT).render(current_datetime=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         system_prompt += Template(DEEPRESEARCH_TOOLS).render(tools="\n".join([json.dumps(tool.get("function"), ensure_ascii=False, indent=4) for tool in tools]))
         system_prompt += Template(DEEPRESEARCH_ACTIONS).render(actions="")
-        yield event.plain_result(system_prompt)
+        
+        deepresearch_session_id = str(uuid.uuid4())
+        yield event.plain_result(f"深度研究会话ID: {deepresearch_session_id}, 保存该id以用于继续研究")
+        deepresearch_context = DeepResearchContext(deepresearch_session_id, self.context.get_using_provider(), system_prompt)
+        self.datas["deepresearch"][deepresearch_session_id] = deepresearch_context
+        
+        # 设置阶段为ASK
+        deepresearch_context.stage = DeepResearchWorkStage.ASK
+        
+        response_json = await deepresearch_context.call_llm(research_topic)
+        
+        while True:
+            action = response_json.get("action")
+            if action == "ask":
+                think = response_json.get("think")
+                yield event.plain_result(f"[想法] {think}")
+                question = response_json.get("question")
+                yield event.plain_result(f"{question}")
+                
+                @session_waiter(timeout=120, record_history_chains=False)
+                async def ask(controller: SessionController, event: AstrMessageEvent):
+                    next_input_result = event.message_str
+                    nonlocal response_json
+                    response_json = await deepresearch_context.call_llm(next_input_result)
+                    controller.stop()
+                    
+                try:
+                    await ask(event)
+                except TimeoutError as _:
+                    yield event.plain_result("[系统] 等待用户回答超时，如果需要恢复研究，请使用 session id 继续研究")
+                except Exception as e:
+                    logger.error(f"执行ask动作时出错: {e}")
+                    yield event.plain_result("[系统] 执行ask动作时出错，请检查错误信息")
+            elif action == "set_stage":
+                deepresearch_context.stage = response_json.get("stage")
+                yield event.plain_result(f"[系统] 当前阶段已设置为: {deepresearch_context.stage}")
+                response_json = await deepresearch_context.call_llm(f"当前系统stage已经设置为: {deepresearch_context.stage}, 请继续下一步操作")
+            else:
+                logger.error(f"未知动作: {action}")
+                yield event.plain_result(f"[系统] 尝试执行未知动作: {action}")
+                break
+        
+        yield event.plain_result("[调试] deepresearch 结束")
             
-    async def generate_topic_summary(self, text: str) -> str:
+    async def _generate_topic_summary(self, text: str) -> str:
         """
         生成会话总结
         """
@@ -166,7 +188,7 @@ class KNBotEnhance(Star):
         )
         return response.completion_text
 
-    async def text_to_markdown_image(self, text: str, generate_topic_summary: bool = False, title: str = None) -> str:
+    async def _text_to_markdown_image(self, text: str, generate_topic_summary: bool = False, title: str = None) -> str:
         """
         将 Markdown 文本转换为带有样式的图片（使用模板文件）
         """
@@ -180,7 +202,7 @@ class KNBotEnhance(Star):
             json_encoded_text = json.dumps(text)
             full_html = self.markdown_html_template.render(
                 json_text="const markdownInput = " + json_encoded_text + ";",
-                topic_summary= title if title else await self.generate_topic_summary(text) if generate_topic_summary else "KNBot Enhance"
+                topic_summary= title if title else await self._generate_topic_summary(text) if generate_topic_summary else "KNBot Enhance"
             )
 
             # 文件保存路径

@@ -1,6 +1,6 @@
 name: knbot_enhance
 desc: [自用]KNBot 功能增强插件
 help: 输入 /keyword 查看关键词回复帮助。
-version: v1.0.3
+version: 1.0.4
 author: Kalinote
 repo: https://github.com/kalinote/knbot_enhance
