@@ -130,14 +130,9 @@ class KNBotEnhance(Star):
         func_tools_mgr = self.context.get_llm_tool_manager()
         tools = func_tools_mgr.get_func_desc_openai_style()
         
-        system_prompt = ""
-        system_prompt += Template(DEEPRESEARCH_PROMPT).render(current_datetime=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        system_prompt += Template(DEEPRESEARCH_TOOLS).render(tools="\n".join([json.dumps(tool.get("function"), ensure_ascii=False, indent=4) for tool in tools]))
-        system_prompt += Template(DEEPRESEARCH_ACTIONS).render(actions="")
-        
         deepresearch_session_id = str(uuid.uuid4())
         yield event.plain_result(f"深度研究会话ID: {deepresearch_session_id}, 保存该id以用于继续研究")
-        deepresearch_context = DeepResearchContext(deepresearch_session_id, self.context.get_using_provider(), system_prompt)
+        deepresearch_context = DeepResearchContext(deepresearch_session_id, self.context.get_using_provider(), tools)
         self.datas["deepresearch"][deepresearch_session_id] = deepresearch_context
         
         # 设置阶段为ASK

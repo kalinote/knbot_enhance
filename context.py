@@ -1,15 +1,19 @@
 
+import datetime
 import json
 from astrbot.core.provider.entities import LLMResponse
 from astrbot.core.provider.provider import Provider
 from astrbot.api import logger
+from .prompt import *
 from .enums import DeepResearchWorkStage
+
+from jinja2 import Template
 
 class DeepResearchContext:
     """
     深度研究上下文
     """    
-    def __init__(self, session_id: str, provider: Provider, system_prompt: str):        
+    def __init__(self, session_id: str, provider: Provider, tools: list):        
         # 深度研究会话ID
         self._session_id: str = session_id
         
@@ -25,8 +29,11 @@ class DeepResearchContext:
         # 对话历史
         self._history = []
         
+        # 外部工具
+        self._tools = tools
+        
         # 系统指令
-        self._system_prompt = system_prompt
+        self._system_prompt_template = DEEPRESEARCH_PROMPT + DEEPRESEARCH_TOOLS + DEEPRESEARCH_ACTIONS
         
     @property
     def provider(self):
@@ -39,10 +46,19 @@ class DeepResearchContext:
     @property
     def stage(self) -> DeepResearchWorkStage:
         return self._stage
-
+    
     @stage.setter
     def stage(self, stage: DeepResearchWorkStage):
         self._stage = stage
+    
+    @property
+    def system_prompt(self) -> str:
+        return Template(self._system_prompt_template).render(
+            current_datetime=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            stage=self.stage,
+            tools="\n".join([json.dumps(tool.get("function"), ensure_ascii=False, indent=4) for tool in self._tools]),
+            actions=""
+        )
     
     def add_history_org(self, role, content):
         if not content:
@@ -68,7 +84,7 @@ class DeepResearchContext:
         response: LLMResponse = await self._provider.text_chat(
             prompt=content,
             contexts=self._history,
-            system_prompt=self._system_prompt
+            system_prompt=self.system_prompt
         )
         
         response_json: str = response.completion_text

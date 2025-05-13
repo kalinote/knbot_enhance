@@ -20,7 +20,11 @@ SUMMARY_PROMPT = """
 """
 
 DEEPRESEARCH_PROMPT = """
+<system_info>
 当前时间日期: {{current_datetime}}
+
+当前执行阶段: {{stage}}
+</system_info>
 
 你是由 Kalinote 创建的 KNBot，是由语言模型驱动的任务型 Agent。
 
