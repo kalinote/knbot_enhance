@@ -34,7 +34,7 @@ class DeepResearchAgent:
         self._tools = tools
         
         # 系统指令
-        self._system_prompt_template = DEEPRESEARCH_PROMPT + DEEPRESEARCH_TOOLS + DEEPRESEARCH_ACTIONS
+        self._system_prompt_template = DEEPRESEARCH_PROMPT + DEEPRESEARCH_ACTIONS + DEEPRESEARCH_TOOLS
         
         # 当前任务的研究主题
         self._research_topic = None
@@ -148,11 +148,12 @@ class DeepResearchAgent:
             "content": content
         })
     
-    async def call_llm(self, content) -> dict:
-        logger.warning("调试：触发call_llm")
+    async def call_llm(self, content, system_message: bool = False) -> dict:
+        prompt = content if not system_message else f"<system>{content}</system>"
+        logger.warning(f"调试 - 发送消息：\n{prompt}")
         
         response: LLMResponse = await self._provider.text_chat(
-            prompt=content,
+            prompt=prompt,
             contexts=self._history,
             system_prompt=self.system_prompt
         )
@@ -161,7 +162,7 @@ class DeepResearchAgent:
         if response_json.startswith("```json"):
             response_json = response_json.strip("```json").strip("```")
         
-        logger.warning(f"调试输出: {response_json}")
+        logger.warning(f"调试 - 模型输出: {response_json}")
         
         try:
             response_json = json.loads(response_json)

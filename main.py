@@ -148,7 +148,7 @@ class KNBotEnhance(Star):
                 question = response_json.get("question")
                 yield event.plain_result(f"{question}")
                 
-                @session_waiter(timeout=120, record_history_chains=False)
+                @session_waiter(timeout=300, record_history_chains=False)
                 async def do_ask(controller: SessionController, event: AstrMessageEvent):
                     next_input_result = event.message_str
                     nonlocal response_json
@@ -159,6 +159,7 @@ class KNBotEnhance(Star):
                     await do_ask(event)
                 except TimeoutError as _:
                     yield event.plain_result("[ask] 等待用户回答超时，如果需要恢复研究，请使用 session id 继续研究")
+                    break
                 except Exception as e:
                     logger.error(f"执行ask动作时出错: {e}")
                     yield event.plain_result("[系统] 执行ask动作时出错，请检查错误信息")
@@ -166,7 +167,7 @@ class KNBotEnhance(Star):
             elif action == "set_stage":
                 deepresearch_agent.stage = response_json.get("stage")
                 yield event.plain_result(f"[系统] 当前阶段已设置为: {deepresearch_agent.stage}")
-                response_json = await deepresearch_agent.call_llm(f"当前系统stage已经设置为: {deepresearch_agent.stage}, 请继续下一步操作")
+                response_json = await deepresearch_agent.call_llm(f"当前系统stage已经设置为: {deepresearch_agent.stage}, 请继续下一步操作", system_message=True)
                 
             elif action == "answer":
                 think = response_json.get("think")
@@ -183,7 +184,7 @@ class KNBotEnhance(Star):
                 
                 yield event.plain_result(f"{format_answer}")
                 
-                @session_waiter(timeout=120, record_history_chains=False)
+                @session_waiter(timeout=300, record_history_chains=False)
                 async def do_answer(controller: SessionController, event: AstrMessageEvent):
                     next_input_result = event.message_str
                     nonlocal response_json
@@ -194,6 +195,7 @@ class KNBotEnhance(Star):
                     await do_answer(event)
                 except TimeoutError as _:
                     yield event.plain_result("[answer] 等待用户回答超时，如果需要恢复研究，请使用 session id 继续研究")
+                    break
                 except Exception as e:
                     logger.error(f"执行answer动作时出错: {e}")
                     yield event.plain_result("[系统] 执行answer动作时出错，请检查错误信息")
@@ -202,14 +204,14 @@ class KNBotEnhance(Star):
                 research_topic_detail = response_json.get("research_topic")
                 deepresearch_agent.research_topic = research_topic_detail
                 yield event.plain_result(f"[系统] 当前研究主题已设置为: {research_topic_detail}")
-                response_json = await deepresearch_agent.call_llm(f"当前系统研究主题已设置，请继续下一步操作")
+                response_json = await deepresearch_agent.call_llm(f"研究主题已设置，请继续下一步操作", system_message=True)
                     
             elif action == "set_todo_list":
                 todo_list = response_json.get("todo_list")
                 for step in todo_list:
                     deepresearch_agent.add_todo_list(step)
                 yield event.plain_result("[系统] 已设置Todo list:\n" + "\n".join([f"{i+1}. {item}" for i, item in enumerate(todo_list)]))
-                response_json = await deepresearch_agent.call_llm(f"当前系统Todo List已设置，请继续下一步操作")
+                response_json = await deepresearch_agent.call_llm(f"Todo List已设置，请继续下一步操作", system_message=True)
                     
             elif action == "set_todo_status":
                 todo_id = response_json.get("id")
@@ -218,11 +220,10 @@ class KNBotEnhance(Star):
                 result = deepresearch_agent.set_todo_status(todo_id, todo_status, todo_reason)
                 if result:
                     yield event.plain_result(f"[系统] 已设置Todo项状态: {todo_id} -> {todo_status}")
-                    response_json = await deepresearch_agent.call_llm(f"状态已设置，请继续下一步操作")
+                    response_json = await deepresearch_agent.call_llm(f"状态已设置，请继续下一步操作", system_message=True)
                 else:
                     yield event.plain_result(f"[系统] 尝试设置Todo项状态，但设置失败: 未找到Todo项: {todo_id}")
-                    response_json = await deepresearch_agent.call_llm(f"设置状态失败: 未找到Todo项: {todo_id}，请确认id是否正确")
-                
+                    response_json = await deepresearch_agent.call_llm(f"设置状态失败: 未找到Todo项: {todo_id}，请确认id是否正确", system_message=True)
                     
             else:
                 logger.error(f"未知动作: {action}")
