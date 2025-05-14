@@ -20,7 +20,7 @@ from astrbot.core.utils.session_waiter import (
 from data.plugins.knbot_enhance.enums import DeepResearchWorkStage
 
 from .prompt import *
-from .context import DeepResearchContext
+from .agent import DeepResearchAgent
 
 @register("knbot_enhance", "Kalinote", "[自用]KNBot 功能增强插件", "1.0.4", "https://github.com/kalinote/knbot_enhance")
 class KNBotEnhance(Star):
@@ -132,13 +132,13 @@ class KNBotEnhance(Star):
         
         deepresearch_session_id = str(uuid.uuid4())
         yield event.plain_result(f"深度研究会话ID: {deepresearch_session_id}, 保存该id以用于继续研究")
-        deepresearch_context = DeepResearchContext(deepresearch_session_id, self.context.get_using_provider(), tools)
-        self.datas["deepresearch"][deepresearch_session_id] = deepresearch_context
+        deepresearch_agent = DeepResearchAgent(deepresearch_session_id, self.context.get_using_provider(), tools)
+        self.datas["deepresearch"][deepresearch_session_id] = deepresearch_agent
         
         # 设置阶段为ASK
-        deepresearch_context.stage = DeepResearchWorkStage.ASK
+        deepresearch_agent.stage = DeepResearchWorkStage.ASK
         
-        response_json = await deepresearch_context.call_llm(research_topic)
+        response_json = await deepresearch_agent.call_llm(research_topic)
         
         while True:
             action = response_json.get("action")
@@ -149,23 +149,81 @@ class KNBotEnhance(Star):
                 yield event.plain_result(f"{question}")
                 
                 @session_waiter(timeout=120, record_history_chains=False)
-                async def ask(controller: SessionController, event: AstrMessageEvent):
+                async def do_ask(controller: SessionController, event: AstrMessageEvent):
                     next_input_result = event.message_str
                     nonlocal response_json
-                    response_json = await deepresearch_context.call_llm(next_input_result)
+                    response_json = await deepresearch_agent.call_llm(next_input_result)
                     controller.stop()
                     
                 try:
-                    await ask(event)
+                    await do_ask(event)
                 except TimeoutError as _:
-                    yield event.plain_result("[系统] 等待用户回答超时，如果需要恢复研究，请使用 session id 继续研究")
+                    yield event.plain_result("[ask] 等待用户回答超时，如果需要恢复研究，请使用 session id 继续研究")
                 except Exception as e:
                     logger.error(f"执行ask动作时出错: {e}")
                     yield event.plain_result("[系统] 执行ask动作时出错，请检查错误信息")
+                    
             elif action == "set_stage":
-                deepresearch_context.stage = response_json.get("stage")
-                yield event.plain_result(f"[系统] 当前阶段已设置为: {deepresearch_context.stage}")
-                response_json = await deepresearch_context.call_llm(f"当前系统stage已经设置为: {deepresearch_context.stage}, 请继续下一步操作")
+                deepresearch_agent.stage = response_json.get("stage")
+                yield event.plain_result(f"[系统] 当前阶段已设置为: {deepresearch_agent.stage}")
+                response_json = await deepresearch_agent.call_llm(f"当前系统stage已经设置为: {deepresearch_agent.stage}, 请继续下一步操作")
+                
+            elif action == "answer":
+                think = response_json.get("think")
+                answer = response_json.get("answer")
+                yield event.plain_result(f"[想法] {think}")
+                
+                format_answer = ""
+                format_answer += answer
+                if response_json.get("reference"):
+                    reference_index = 1
+                    for item in response_json.get("reference"):
+                        format_answer += f"\n\n# 参考来源：\n{reference_index}. {item.get('title')}\n{item.get('content')}\n{item.get('url')}\n\n"
+                        reference_index += 1
+                
+                yield event.plain_result(f"{format_answer}")
+                
+                @session_waiter(timeout=120, record_history_chains=False)
+                async def do_answer(controller: SessionController, event: AstrMessageEvent):
+                    next_input_result = event.message_str
+                    nonlocal response_json
+                    response_json = await deepresearch_agent.call_llm(next_input_result)
+                    controller.stop()
+                    
+                try:
+                    await do_answer(event)
+                except TimeoutError as _:
+                    yield event.plain_result("[answer] 等待用户回答超时，如果需要恢复研究，请使用 session id 继续研究")
+                except Exception as e:
+                    logger.error(f"执行answer动作时出错: {e}")
+                    yield event.plain_result("[系统] 执行answer动作时出错，请检查错误信息")
+                    
+            elif action == "set_research_topic":
+                research_topic_detail = response_json.get("research_topic")
+                deepresearch_agent.research_topic = research_topic_detail
+                yield event.plain_result(f"[系统] 当前研究主题已设置为: {research_topic_detail}")
+                response_json = await deepresearch_agent.call_llm(f"当前系统研究主题已设置，请继续下一步操作")
+                    
+            elif action == "set_todo_list":
+                todo_list = response_json.get("todo_list")
+                for step in todo_list:
+                    deepresearch_agent.add_todo_list(step)
+                yield event.plain_result("[系统] 已设置Todo list:\n" + "\n".join([f"{i+1}. {item}" for i, item in enumerate(todo_list)]))
+                response_json = await deepresearch_agent.call_llm(f"当前系统Todo List已设置，请继续下一步操作")
+                    
+            elif action == "set_todo_status":
+                todo_id = response_json.get("id")
+                todo_status = response_json.get("status")
+                todo_reason = response_json.get("reason")
+                result = deepresearch_agent.set_todo_status(todo_id, todo_status, todo_reason)
+                if result:
+                    yield event.plain_result(f"[系统] 已设置Todo项状态: {todo_id} -> {todo_status}")
+                    response_json = await deepresearch_agent.call_llm(f"状态已设置，请继续下一步操作")
+                else:
+                    yield event.plain_result(f"[系统] 尝试设置Todo项状态，但设置失败: 未找到Todo项: {todo_id}")
+                    response_json = await deepresearch_agent.call_llm(f"设置状态失败: 未找到Todo项: {todo_id}，请确认id是否正确")
+                
+                    
             else:
                 logger.error(f"未知动作: {action}")
                 yield event.plain_result(f"[系统] 尝试执行未知动作: {action}")

@@ -1,6 +1,7 @@
 
 import datetime
 import json
+import hashlib
 from astrbot.core.provider.entities import LLMResponse
 from astrbot.core.provider.provider import Provider
 from astrbot.api import logger
@@ -9,7 +10,7 @@ from .enums import DeepResearchWorkStage
 
 from jinja2 import Template
 
-class DeepResearchContext:
+class DeepResearchAgent:
     """
     深度研究上下文
     """    
@@ -35,6 +36,12 @@ class DeepResearchContext:
         # 系统指令
         self._system_prompt_template = DEEPRESEARCH_PROMPT + DEEPRESEARCH_TOOLS + DEEPRESEARCH_ACTIONS
         
+        # 当前任务的研究主题
+        self._research_topic = None
+        
+        # 当前任务的TODO list
+        self._todo_list = []
+        
     @property
     def provider(self):
         return self._provider
@@ -52,13 +59,48 @@ class DeepResearchContext:
         self._stage = stage
     
     @property
+    def research_topic(self) -> str:
+        return self._research_topic
+    
+    @research_topic.setter
+    def research_topic(self, research_topic: str):
+        self._research_topic = research_topic
+    
+    @property
+    def todo_list(self) -> list:
+        return self._todo_list
+    
+    @property
     def system_prompt(self) -> str:
-        return Template(self._system_prompt_template).render(
+        # TODO 按阶段添加可用actions
+        prompt = Template(self._system_prompt_template).render(
             current_datetime=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             stage=self.stage,
             tools="\n".join([json.dumps(tool.get("function"), ensure_ascii=False, indent=4) for tool in self._tools]),
             actions=""
         )
+        
+        return prompt
+    
+    def add_todo_list(self, step: str, status: str = "队列中", reason: str = ""):
+        self._todo_list.append({
+            "id": hashlib.md5(step.encode("utf-8")).hexdigest()[:6],
+            "step": step,
+            "status": status,
+            "reason": reason
+        })
+        
+    def set_todo_status(self, todo_id: str, status: str, reason: str):
+        for todo in self._todo_list:
+            if todo.get("id") == todo_id:
+                todo["status"] = status
+                todo["reason"] = reason
+                break
+        else:
+            logger.error(f"未找到Todo项: {todo_id}")
+            return False
+        
+        return True
     
     def add_history_org(self, role, content):
         if not content:
@@ -68,6 +110,32 @@ class DeepResearchContext:
             "role": role,
             "content": content
         })
+        
+        if role == "assistant":
+            action = content.get("action")
+            assistant_content = None
+            
+            if action == "ask":
+                assistant_content = content.get("question")
+                
+            elif action == "set_stage":
+                assistant_content = content.get("stage")
+                
+            elif action == "answer":
+                assistant_content = content.get("answer")
+                
+            elif action == "set_research_topic":
+                assistant_content = content.get("research_topic")
+                
+            elif action == "set_todo_list":
+                assistant_content = "\n".join(content.get("todo_list"))
+                
+            else:
+                logger.error(f"未知动作: {action}")
+                
+            self.add_history(role, assistant_content)
+        else:
+            self.add_history(role, content)
         
         return True
         
@@ -81,6 +149,8 @@ class DeepResearchContext:
         })
     
     async def call_llm(self, content) -> dict:
+        logger.warning("调试：触发call_llm")
+        
         response: LLMResponse = await self._provider.text_chat(
             prompt=content,
             contexts=self._history,
@@ -89,7 +159,7 @@ class DeepResearchContext:
         
         response_json: str = response.completion_text
         if response_json.startswith("```json"):
-            response_json = response_json.replace("```json", "").replace("```", "")
+            response_json = response_json.strip("```json").strip("```")
         
         logger.warning(f"调试输出: {response_json}")
         
@@ -100,20 +170,8 @@ class DeepResearchContext:
             logger.error(f"解析深度研究结果失败: {e}")
             return
         
-        action = response_json.get("action")
-        assistant_content = None
-        if action == "ask":
-            assistant_content = response_json.get("question")
-        elif action == "set_stage":
-            assistant_content = response_json.get("stage")
-        else:
-            logger.error(f"未知动作: {action}")
-        
-        # TODO 优化这里的结构
         self.add_history_org("user", content)
         self.add_history_org("assistant", response_json)
-        self.add_history("user", content)
-        self.add_history("assistant", assistant_content)
         
         return response_json
     
