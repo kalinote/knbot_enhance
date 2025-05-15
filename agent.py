@@ -1,4 +1,3 @@
-
 import datetime
 import json
 import hashlib
@@ -27,14 +26,19 @@ class DeepResearchAgent:
         # 完整对话历史
         self._history_org = []
         
-        # 对话历史
-        self._history = []
+        # 不同阶段的对话历史
+        self._history = {
+            DeepResearchWorkStage.ASK: [],
+            DeepResearchWorkStage.PLANNING: [],
+            DeepResearchWorkStage.EXECUTE: [],
+            DeepResearchWorkStage.FINISHED: []
+        }
         
         # 外部工具
         self._tools = tools
         
         # 系统指令
-        self._system_prompt_template = DEEPRESEARCH_PROMPT + DEEPRESEARCH_ACTIONS + DEEPRESEARCH_TOOLS
+        self._system_prompt_template = DEEPRESEARCH_PROMPT + DEEPRESEARCH_ACTIONS + DEEPRESEARCH_TOOLS + DEEPRESEARCH_NOTICE
         
         # 当前任务的研究主题
         self._research_topic = None
@@ -69,6 +73,14 @@ class DeepResearchAgent:
     @property
     def todo_list(self) -> list:
         return self._todo_list
+    
+    @property
+    def history(self) -> list:
+        return self._history[self.stage]
+    
+    @history.getter
+    def history(self) -> list:
+        return self._history[self.stage]
     
     @property
     def system_prompt(self) -> str:
@@ -143,36 +155,53 @@ class DeepResearchAgent:
         return self._history_org
     
     def add_history(self, role, content):
-        self._history.append({
+        self.history.append({
             "role": role,
             "content": content
         })
     
     async def call_llm(self, content, system_message: bool = False) -> dict:
-        prompt = content if not system_message else f"<system>{content}</system>"
-        logger.warning(f"调试 - 发送消息：\n{prompt}")
+        org_prompt = content if not system_message else f"<system>{content}</system>"
+        current_prompt = org_prompt
         
-        response: LLMResponse = await self._provider.text_chat(
-            prompt=prompt,
-            contexts=self._history,
-            system_prompt=self.system_prompt
-        )
+        accumulated_contexts_for_llm = self.history.copy()
         
-        response_json: str = response.completion_text
-        if response_json.startswith("```json"):
-            response_json = response_json.strip("```json").strip("```")
+        response_json = None
         
-        logger.warning(f"调试 - 模型输出: {response_json}")
-        
-        try:
-            response_json = json.loads(response_json)
-        except Exception as e:
-            logger.error(response_json)
-            logger.error(f"解析深度研究结果失败: {e}")
-            return
-        
-        self.add_history_org("user", content)
-        self.add_history_org("assistant", response_json)
+        while True:
+            logger.warning(f"调试 - 发送消息:\n{current_prompt}")
+            
+            response: LLMResponse = await self._provider.text_chat(
+                prompt=current_prompt,
+                contexts=accumulated_contexts_for_llm,
+                system_prompt=self.system_prompt
+            )
+            
+            raw_response_text: str = response.completion_text
+            if raw_response_text.startswith("```json"):
+                raw_response_text = raw_response_text.strip("```json").strip("```")
+            
+            logger.warning(f"调试 - 模型输出: {raw_response_text}")
+            
+            try:
+                response_json = json.loads(raw_response_text)
+                self.add_history_org("user", org_prompt)
+                self.add_history_org("assistant", response_json)
+                break
+            except Exception as e:
+                logger.error(f"解析结果失败: {e}")
+                logger.error(f"原始输出: {raw_response_text}")
+                
+                accumulated_contexts_for_llm.append({
+                    "role": "user",
+                    "content": current_prompt
+                })
+                accumulated_contexts_for_llm.append({
+                    "role": "assistant",
+                    "content": raw_response_text
+                })
+                
+                current_prompt = f"<system>你上一次的回复 (已包含在上面的对话历史中) 无法被正确解析为JSON。解析时遇到的具体错误是: {e}\n请仔细检查对话历史，并严格按照JSON格式重新生成你的回复。</system>"
         
         return response_json
     

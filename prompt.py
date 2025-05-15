@@ -73,6 +73,7 @@ DEEPRESEARCH_PROMPT = """
     - 分析ASK阶段得到的详细研究主题
     - 基于可以使用的action进行任务计划
     - 使用action生成一份详细的Todo list，由于后续步骤有可能会修改，所以步骤不要带序号
+    - 通过action设置Todo list
     - Todo list 需要尽可能详细到每一个细节步骤，其将会被用于进行阶段性完成状态评估
     
 3. EXECUTE 阶段：
@@ -100,19 +101,16 @@ DEEPRESEARCH_PROMPT = """
 注意：**事件流可能会被截断或部分省略（以 `--snip--` 表示）**
 </event_stream>
 
-为了压缩上下文长度，对话过程可能会被处理，所以对话过程可能不是标准的json格式，但你在进行最新回复时必须按照下面actions中指定action的action_call_format的json格式回答，只回答可直接解析的json内容(actions中的注释是为了帮助你理解，在回答时不要包含任何注释，防止解析失败)，不要有其他任何内容。
-在回答前确认你回答的内容是可直接解析的json，并且满足内容和格式的要求。
-一次最多只能执行一个action。
-
 """
 
 DEEPRESEARCH_ACTIONS = """
 
-你可以执行的actions:
+下面是你可以执行的actions，每次**选择一个**执行，禁止同时执行多个action:
 <actions>
 {
     "action_name": "ask",
     "description": "向用户提问。如果你认为用户输入的信息有不明确的地方，可以向用户提问，获取更多信息。在确认信息足够充足前，可以使用该action进行提问，要求用户补充细节，但不要过度提问。",
+    "stage": ["ASK"],
     "action_call_format": {
         "action": "ask",
         "think": "简单总结提问的思考过程，为什么你会这样提问，这些问题将会对你的回答有怎样的影响，控制在50字以内",
@@ -123,6 +121,7 @@ DEEPRESEARCH_ACTIONS = """
 {
     "action_name": "answer",
     "description": "回答用户的问题，或告知用户你想让用户知道的信息。不要回答不确定内容。**不要主动回答用户没有问到的问题**。内容必须是一个确定的结论。始终在回答最后引导用户进行下一步要求。",
+    "stage": ["ASK", "PLANNING", "EXECUTE", "FINISHED"],
     "action_call_format": {
         "action": "answer",
         "think": "简单总结回答用户的思考过程，为什么你会这样回答，控制在50字以内",
@@ -139,16 +138,27 @@ DEEPRESEARCH_ACTIONS = """
 }
 {
     "action_name": "set_research_topic",
-    "description": "在有一个明确的目标后，设置当前任务的研究主题摘要。内容尽可能详细，包括你对研究目标的详细分析。该内容没有篇幅的限制，越详细越好。",
+    "description": "在确定有一个明确的目标后，设置当前任务的研究主题摘要和你对研究目标的详细分析。该内容没有篇幅的限制，越详细越好。",
+    "stage": ["ASK"],
     "action_call_format": {
         "action": "set_research_topic",
-        "research_topic": "研究主题的详细内容"
+        "research_topic": "研究主题的详细内容，可以使用Markdown格式"
     },
     "next_input": "返回成功或错误信息"
 }
 {
+    "action_name": "get_research_topic",
+    "description": "获取当前任务的研究主题摘要",
+    "stage": ["PLANNING", "EXECUTE", "FINISHED"],
+    "action_call_format": {
+        "action": "get_research_topic",
+    },
+    "next_input": "研究主题的详细内容"
+}
+{
     "action_name": "set_todo_list",
     "description": "在有一个明确的目标后，设置当前任务的详细Todo list, 步骤不要带序号",
+    "stage": ["PLANNING"],
     "action_call_format": {
         "action": "set_todo_list",
         "todo_list": [
@@ -162,6 +172,7 @@ DEEPRESEARCH_ACTIONS = """
 {
     "action_name": "get_todo_list",
     "description": "获取当前任务的Todo list",
+    "stage": ["PLANNING", "EXECUTE", "FINISHED"],
     "action_call_format": {
         "action": "get_todo_list",
     },
@@ -178,6 +189,7 @@ DEEPRESEARCH_ACTIONS = """
 {
     "action_name": "set_stage",
     "description": "设置当前任务的阶段，可以设置为ASK、PLANNING、EXECUTE、FINISHED",
+    "stage": ["ASK", "PLANNING", "EXECUTE", "FINISHED"],
     "action_call_format": {
         "action": "set_stage",
         "stage": "ASK、PLANNING、EXECUTE、FINISHED 其中之一"
@@ -187,6 +199,7 @@ DEEPRESEARCH_ACTIONS = """
 {
     "action_name": "set_todo_status",
     "description": "设置指定Todo项状态",
+    "stage": ["PLANNING", "EXECUTE", "FINISHED"],
     "action_call_format": {
         "action": "set_todo_status",
         "id": "Todo list的步骤的唯一标识，可以用于修改Todo状态",
@@ -198,6 +211,7 @@ DEEPRESEARCH_ACTIONS = """
 {
     "action_name": "finished",
     "description": "工作结束，向用户展示你的工作成果，并告知用户你已经完成的内容和完成结果。",
+    "stage": ["FINISHED"],
     "action_call_format": {
         "action": "finished",
         "think": "简单总结你任务工作结束的原因，包括成功或失败的情况，控制在50字以内",
@@ -209,6 +223,7 @@ DEEPRESEARCH_ACTIONS = """
 {
     "action_name": "tool_use",
     "description": "使用工具，可以一次进行多个工具的调用，工具调用结果会一次性返回",
+    "stage": ["ASK", "PLANNING", "EXECUTE", "FINISHED"],
     "action_call_format": {
         "action": "tool_use",
         "think": "简单总结使用工具的思考过程，为什么你会这样使用工具，通过这些工具可以解决你怎样的问题，控制在50字以内",
@@ -239,7 +254,8 @@ DEEPRESEARCH_ACTIONS = """
 }
 {
     "action_name": "search",
-    "description": "从互联网上搜索信息，优先级高于tools中的搜索工具，如果你需要搜索信息，优先使用该action，而不是tools中的搜索工具",
+    "description": "从互联网上搜索信息",
+    "stage": ["ASK", "PLANNING", "EXECUTE", "FINISHED"],
     "action_call_format": {
         "action": "search",
         "think": "简单总结搜索的思考过程，你有怎样的问题需要进行搜索，控制在50字以内",
@@ -256,7 +272,8 @@ DEEPRESEARCH_ACTIONS = """
 }
 {
     "action_name": "write_file",
-    "description": "写入指定文本内容到文件，只能写入文本内容，包括代码、文档或其他需要写入到文件的内容等"
+    "description": "写入指定文本内容到文件，只能写入文本内容，包括代码、文档或其他需要写入到文件的内容等",
+    "stage": ["ASK", "PLANNING", "EXECUTE", "FINISHED"],
     "action_call_format": {
         "action": "write_file",
         "path": "文件保存的相对路径，留空或/为保存到根目录"
@@ -266,6 +283,7 @@ DEEPRESEARCH_ACTIONS = """
 {
     "action_name": "visit", 
     "description": "获取指定url内容",
+    "stage": ["ASK", "PLANNING", "EXECUTE", "FINISHED"],
     "action_call_format": {
         "action": "visit",
         "think": "简单总结获取指定url内容的思考过程，你为什么想获取这个url的内容，这个内容可能对你有什么帮助，控制在50字以内",
@@ -284,9 +302,6 @@ action结构说明：
     "action_call_format": "你需要严格遵守的回答格式，不同action的回答格式要求可能有所不同",
     "next_input": "执行该action后得到的返回内容描述或结构或调用失败时的错误信息，不同action的next_input结构可能有所不同"
 }
-
-注意：**action的优先级应该高于tool，如果有tool功能与action重合或冲突，优先使用action而不是tool**
-注意：**一次只能执行一个action，不要同时执行多个action**
 
 """
 
@@ -317,7 +332,6 @@ tools结构说明：
     }
 }
 
-注意：**tool具有不确定性和不稳定性，所以tool的使用优先级应该低于action，如果tool和action功能重合或冲突，优先使用action而不是tool**
 """
 
 # 待使用
@@ -334,3 +348,14 @@ tools结构说明：
 }
 """
 
+DEEPRESEARCH_NOTICE = """
+
+<notice>
+1. 为了压缩上下文长度，对话过程可能会被处理，所以对话过程可能不是标准的json格式，但你在进行最新回复时必须按照下面actions中指定action的action_call_format的json格式回答，只回答可直接解析的json内容(actions中的注释是为了帮助你理解，在回答时不要包含任何注释，防止解析失败)，不要有其他任何内容。
+2. 在回答前确认你回答的内容是可直接解析的json，并且满足内容和格式的要求。
+3. 一次最多只能执行一个action，不要同时执行多个action。
+4. tool具有不确定性和不稳定性，所以tool的使用优先级应该低于action，如果tool和action功能重合或冲突，优先使用action而不是tool。
+5. 确保只使用当前阶段可使用的action。
+</notice>
+
+"""

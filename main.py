@@ -165,7 +165,7 @@ class KNBotEnhance(Star):
                     yield event.plain_result("[系统] 执行ask动作时出错，请检查错误信息")
                     
             elif action == "set_stage":
-                deepresearch_agent.stage = response_json.get("stage")
+                deepresearch_agent.stage = DeepResearchWorkStage.get_stage(response_json.get("stage"))
                 yield event.plain_result(f"[系统] 当前阶段已设置为: {deepresearch_agent.stage}")
                 response_json = await deepresearch_agent.call_llm(f"当前系统stage已经设置为: {deepresearch_agent.stage}, 请继续下一步操作", system_message=True)
                 
@@ -203,7 +203,7 @@ class KNBotEnhance(Star):
             elif action == "set_research_topic":
                 research_topic_detail = response_json.get("research_topic")
                 deepresearch_agent.research_topic = research_topic_detail
-                yield event.plain_result(f"[系统] 当前研究主题已设置为: {research_topic_detail}")
+                yield event.plain_result(f"[系统] 当前研究主题已设置为:\n{research_topic_detail}")
                 response_json = await deepresearch_agent.call_llm(f"研究主题已设置，请继续下一步操作", system_message=True)
                     
             elif action == "set_todo_list":
