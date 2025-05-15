@@ -201,7 +201,7 @@ class DeepResearchAgent:
                     "content": raw_response_text
                 })
                 
-                current_prompt = f"<system>你上一次的回复 (已包含在上面的对话历史中) 无法被正确解析为JSON。解析时遇到的具体错误是: {e}\n请仔细检查对话历史，并严格按照JSON格式重新生成你的回复。</system>"
+                current_prompt = f"<system>你上一次的回复 (已包含在上面的对话历史中) 无法被正确解析为JSON。解析时遇到的具体错误是: {e}\n请仔细检查对话历史，并严格按照JSON格式重新生成你的回复。注意一次只能执行一个action。</system>"
         
         return response_json
     
